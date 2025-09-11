@@ -21,6 +21,7 @@ params:
     CONTENT_PERSEUS_DISPLAY: "show"
     CONTENT_OPENSHINYSERVER_DISPLAY: "none"
     CONTENT_POSITCONNECT_DISPLAY: "none"
+    CONTENT_JUPYTER_DISPLAY: "show"
 ---
 
 ```{r echo = FALSE, results = "asis"}
