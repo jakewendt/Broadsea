@@ -1,0 +1,15 @@
+
+services:
+  broadsea-atlasdb:
+    command: postgres -c 'max_connections=300'
+    shm_size: 1g
+
+#	trying to fix the following errors that occur when running achilles() on the synthea10 dataset
+
+#	broadsea-atlasdb | 2025-10-18 00:10:32.068 UTC [1786] FATAL: sorry, too many clients already 
+
+#	broadsea-atlasdb | 2025-10-18 00:31:18.782 UTC [1] LOG: background worker "parallel worker" (PID 863) exited with exit code 1 
+
+#	broadsea-atlasdb | 2025-10-18 00:31:44.996 UTC [903] ERROR: could not resize shared memory segment "/PostgreSQL.3566534440" to 16777216 bytes: No space left on device 
+
+#	broadsea-atlasdb | 2025-10-18 00:33:02.695 UTC [1008] FATAL: terminating background worker "parallel worker" due to administrator command
