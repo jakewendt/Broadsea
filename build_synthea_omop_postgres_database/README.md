@@ -197,12 +197,13 @@ VALUES (
 
 INSERT INTO webapi.source_daimon (source_daimon_id, source_id, daimon_type, table_qualifier, priority)
 VALUES
-	    (4, 2, 0, 'cdm_synthea10', 0),   -- CDM schema
-	    (5, 2, 1, 'cdm_synthea10', 0),   -- Vocabulary schema (same for Synthea)
-	    (6, 2, 2, 'results_synthea10', 0); -- Results schema (create this if missing)
+	    (4, 2, 0, 'cdm_synthea10', 1),   -- CDM schema
+	    (5, 2, 1, 'cdm_synthea10', 1),   -- Vocabulary schema (same for Synthea)
+	    (6, 2, 2, 'results_synthea10', 1); -- Results schema (create this if missing)
 
 DROP SCHEMA results_synthea10 CASCADE;
-CREATE SCHEMA results_synthea10;
+-- CREATE SCHEMA results_synthea10;
+CREATE SCHEMA results_synthea10 AUTHORIZATION postgres;
 
 CREATE TABLE IF NOT EXISTS results_synthea10.achilles_results_dist
 (
@@ -242,7 +243,113 @@ CREATE TABLE IF NOT EXISTS results_synthea10.achilles_results
 
 ```
 	
-#CREATE SCHEMA results_synthea10 AUTHORIZATION postgres; - perhaps ?
+
+Clear the cache
+
+DELETE FROM webapi.achilles_cache;
+
+
+
+
+
+
+
+The first couple reports work. The others do not.
+Working on it.
+
+
+
+
+
+
+
+
+
+CREATE TABLE results_synthea10.concept_hierarchy (
+    concept_id INT PRIMARY KEY,
+    concept_name TEXT,
+    level1_concept_name TEXT,
+    level2_concept_name TEXT,
+    level3_concept_name TEXT,
+    level4_concept_name TEXT,
+    treemap TEXT
+);
+
+
+CREATE TABLE results_synthea10.concept_ancestor (
+    ancestor_concept_id INT,
+    descendant_concept_id INT,
+    min_levels_of_separation INT
+);
+
+
+INSERT INTO results_synthea10.concept_hierarchy VALUES (0,0,0);
+INSERT INTO results_synthea10.concept_ancestor VALUES (0,0,0);
+
+
+
+
+SELECT
+concept_hierarchy.concept_id,
+CONCAT(
+COALESCE(concept_hierarchy.level4_concept_name,'NA'), '||',
+COALESCE(concept_hierarchy.level3_concept_name,'NA'), '||',
+COALESCE(concept_hierarchy.level2_concept_name,'NA'), '||',
+COALESCE(concept_hierarchy.level2_concept_name,'NA'), '||',
+COALESCE(concept_hierarchy.concept_name,'NA')
+) AS concept_path,
+ar1.count_value                                     AS num_persons,
+ROUND(CAST(1.0 * ar1.count_value / denom.count_value AS NUMERIC),5) AS percent_persons,
+ROUND(CAST(1.0 * ar2.count_value / ar1.count_value AS NUMERIC),5)   AS records_per_person
+FROM (SELECT *
+FROM results_synthea10.achilles_results WHERE analysis_id = 400) ar1
+INNER JOIN
+(SELECT *
+FROM results_synthea10.achilles_results WHERE analysis_id = 401) ar2
+ON ar1.stratum_1 = ar2.stratum_1
+INNER JOIN
+results_synthea10.concept_hierarchy concept_hierarchy
+ON CAST(CASE WHEN ar1.analysis_id = 400 THEN ar1.stratum_1 ELSE null END AS INT) = concept_hierarchy.concept_id
+AND concept_hierarchy.treemap='Condition'
+,
+(SELECT count_value
+FROM results_synthea10.achilles_results WHERE analysis_id = 1) denom
+ORDER BY ar1.count_value DESC
+
+
+
+
+
+SELECT DISTINCT att.attname as name, att.attnum as OID, pg_catalog.format_type(ty.oid,NULL) AS datatype,
+att.attnotnull as not_null, att.atthasdef as has_default_val, des.description, seq.seqtypid
+FROM pg_catalog.pg_attribute att
+JOIN pg_catalog.pg_type ty ON ty.oid=atttypid
+JOIN pg_catalog.pg_namespace tn ON tn.oid=ty.typnamespace
+JOIN pg_catalog.pg_class cl ON cl.oid=att.attrelid
+JOIN pg_catalog.pg_namespace na ON na.oid=cl.relnamespace
+LEFT OUTER JOIN pg_catalog.pg_type et ON et.oid=ty.typelem
+LEFT OUTER JOIN pg_catalog.pg_attrdef def ON adrelid=att.attrelid AND adnum=att.attnum
+LEFT OUTER JOIN (pg_catalog.pg_depend JOIN pg_catalog.pg_class cs ON classid='pg_class'::regclass AND objid=cs.oid AND cs.relkind='S') ON refobjid=att.attrelid AND refobjsubid=att.attnum
+LEFT OUTER JOIN pg_catalog.pg_namespace ns ON ns.oid=cs.relnamespace
+LEFT OUTER JOIN pg_catalog.pg_index pi ON pi.indrelid=att.attrelid AND indisprimary
+LEFT OUTER JOIN pg_catalog.pg_description des ON (des.objoid=att.attrelid AND des.objsubid=att.attnum AND des.classoid='pg_class'::regclass)
+LEFT OUTER JOIN pg_catalog.pg_sequence seq ON cs.oid=seq.seqrelid
+WHERE
+att.attrelid = 18641::oid
+AND att.attnum > 0
+AND att.attisdropped IS FALSE
+ORDER BY att.attnum
+2025-10-21 04:12:11.663 UTC [301] LOG:  statement: SELECT n.nspname, r.relname
+FROM pg_catalog.pg_class r
+LEFT JOIN pg_catalog.pg_namespace n ON (r.relnamespace = n.oid)
+WHERE r.oid = 18641;
+
+
+
+
+
+
+
 
 
 
@@ -324,6 +431,10 @@ achilles(
   createIndices = TRUE,
 )
 
+#	That worked. Not sure what exactly changed, but numThreads=1 is primarily
+#	select count(1) from results_synthea10.achilles_results;
+#	While this table is not populated, I still don't get plots in Atlas -> Data Sources
+
 #	Don't multithread
 #	analysisIds = c(0,1,2,3,4,5,6,7,8,9,10,11,12),
 #	analysisIds = c(101, 102, 103) # Replace with your desired analysis IDs
@@ -332,7 +443,9 @@ achilles(
 
 
 
+Cleanup
 
+```postgres
 DO $$
 DECLARE
 	r RECORD;
@@ -341,6 +454,7 @@ BEGIN
 		EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident('results_synthea10') || '.' || quote_ident(r.tablename) || ' CASCADE';
 	END LOOP;
 END $$;
+```
 
 
 
